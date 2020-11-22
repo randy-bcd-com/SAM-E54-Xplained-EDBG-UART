@@ -34,12 +34,43 @@
  * Support and FAQ: visit <a href="https://www.microchip.com/support/">Microchip Support</a>
  */
 
+#include <stdint.h>
 #include "atmel_start.h"
 #include "atmel_start_pins.h"
 #include <string.h>
 
-#define SWI_BIT_BANG    1
+#define MAX_SWI_STRAND_LEN 1 // sign = 71 // Rus 18 // Geli
+
+typedef struct{
+    uint8_t g;
+    uint8_t r;
+    uint8_t b;
+}Pixel;
+
+#define BYTES_PER_PIXEL (sizeof(Pixel))
 #define MAX_PIXELS      MAX_SWI_STRAND_LEN
+
+#define DELAY_FUNC_OVERHEAD     50
+#define BIT_1_HIGH_DELAY_VAL    1200-DELAY_FUNC_OVERHEAD
+#define BIT_1_LOW_DELAY_VAL     1300-DELAY_FUNC_OVERHEAD
+#define BIT_0_HIGH_DELAY_VAL    500-DELAY_FUNC_OVERHEAD
+#define BIT_0_LOW_DELAY_VAL     2000-DELAY_FUNC_OVERHEAD
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// External Variables
+////////////////////////////////////////////////////////////////////////////////
+uint8_t timerExpired;
+Pixel pixels[MAX_PIXELS] =
+{
+    {.g = 0x88, 
+    .r = 0x55, 
+    .b = 0x11}
+};
+
+
+static void dly_ns(uint16_t delay_val);
+static void swibbSendStrand(uint16_t len);
 
 static uint8_t example_hello_world[12] = "Hello World!";
 
@@ -77,6 +108,7 @@ int main(void)
 	io_write(&EDBG_COM.io, example_hello_world, 12);
 
 	while (1) {
+        swibbSendStrand(1);
 		if (data_arrived == 0) {
 			continue;
 		}
@@ -87,4 +119,62 @@ int main(void)
 		}
 		data_arrived = 0;
 	}
+}
+
+static uint8_t strandData[MAX_SWI_STRAND_LEN*3];
+
+#define D0      LED0
+
+
+static void dly_ns(uint16_t delay_val)
+{
+    volatile uint16_t i;
+
+    for(i = 0; i < delay_val; i++);
+}
+
+
+///\note Make sure the timing is slightly TOO SLOW. Making it too fast will cause bits to collide downstream
+// WS2811 Timing
+
+// Bit Value "0" timing
+//   0.5 |       2.0 
+//   ____
+//  |    |____________
+
+// Bit Value "1" timing
+//   1.2    |   1.3
+//   _______
+//  |       |_________
+
+static void swibbSendStrand(
+    uint16_t len) ///< Length of the strand
+{
+    uint16_t i, j;
+    uint8_t  mask;
+    static uint8_t pixelValue;
+
+    memcpy((void*)strandData, (void*)pixels, sizeof(strandData));
+
+    for(i=0;i<(len*3);i++){
+        pixelValue = strandData[i];
+
+        mask = 0x80;
+        for(j=0;j<8;j++){
+            // Start High
+            gpio_set_pin_level(D0, false);
+            // Is it a "1"
+            if(mask & pixelValue){
+                dly_ns(BIT_1_HIGH_DELAY_VAL);
+                gpio_set_pin_level(D0, true);
+                dly_ns(BIT_1_LOW_DELAY_VAL);
+            }
+            else{
+                dly_ns(BIT_0_HIGH_DELAY_VAL);
+                gpio_set_pin_level(D0, true);
+                dly_ns(BIT_0_LOW_DELAY_VAL);
+            }
+            mask >>= 1;
+        }
+    }
 }

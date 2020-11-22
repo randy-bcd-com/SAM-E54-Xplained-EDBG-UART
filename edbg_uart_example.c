@@ -38,6 +38,9 @@
 #include "atmel_start_pins.h"
 #include <string.h>
 
+#define SWI_BIT_BANG    1
+#define MAX_PIXELS      MAX_SWI_STRAND_LEN
+
 static uint8_t example_hello_world[12] = "Hello World!";
 
 volatile static uint32_t data_arrived = 0;

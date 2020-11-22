@@ -1,0 +1,12 @@
+**/Debug
+**/Release
+**/settings
+
+*.bak
+*.dep
+*.ewd
+*.ewt
+*.pyc
+*.d
+*.o
+*.exe
